@@ -166,13 +166,13 @@ pBtn.MouseButton1Click:Connect(function()
                 currentDirection = fwd; waitPatrol(currentWalkSec)
                 if not isPatrolling then break end
                 
-                currentDirection = right; waitPatrol(0.5)
+                currentDirection = right; waitPatrol(0.6)
                 if not isPatrolling then break end
                 
                 currentDirection = back; waitPatrol(currentWalkSec)
                 if not isPatrolling then break end
                 
-                currentDirection = right; waitPatrol(0.5)
+                currentDirection = right; waitPatrol(0.6)
             end
             if cameraLockConnection then cameraLockConnection:Disconnect() end
             if patrolConnection then patrolConnection:Disconnect() end
