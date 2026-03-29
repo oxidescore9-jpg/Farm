@@ -1,222 +1,292 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local clickerConnection, patrolConnection, cameraLockConnection = nil, nil, nil
-local isPatrolling = false
+local isPatrolling = false 
+local isTimedPatrolling = false 
+local isClicking = false
 local currentDirection = Vector3.new(0, 0, 0)
 local activeBarriers = {}
+local waypoints = {}
+local currentWpIndex = 1
 local camHeight = 17.5 
 
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FarmSystem_Final_V14"
-screenGui.ResetOnSpawn = false
-local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
-screenGui.Parent = success and coreGui or player:WaitForChild("PlayerGui")
+local color1 = Color3.fromRGB(180, 100, 255) 
+local color2 = Color3.fromRGB(40, 10, 80)  
+local currentGradiantColor = color1
 
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0, 40, 0, 40)
-toggleBtn.Position = UDim2.new(0, 15, 0, 15)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(46, 184, 114)
-toggleBtn.Text = "F"
-toggleBtn.TextColor3 = Color3.new(1,1,1)
-toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.ZIndex = 10
-toggleBtn.Parent = screenGui
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 10)
-
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 180, 0, 340)
-mainFrame.Position = UDim2.new(0.5, -90, 0.5, -170)
-mainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
-
-local uiScale = Instance.new("UIScale", mainFrame)
-local list = Instance.new("UIListLayout", mainFrame)
-list.Padding = UDim.new(0, 5)
-list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-list.VerticalAlignment = Enum.VerticalAlignment.Center
-
-local function btn(txt, clr)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 160, 0, 35)
-    b.BackgroundColor3 = clr
-    b.Text = txt
-    b.TextColor3 = Color3.new(1,1,1)
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 11
-    b.Parent = mainFrame
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-    return b
-end
-
-local inputFrame = Instance.new("Frame")
-inputFrame.Size = UDim2.new(0, 160, 0, 28)
-inputFrame.BackgroundTransparency = 1
-inputFrame.Parent = mainFrame
-Instance.new("UIListLayout", inputFrame).FillDirection = Enum.FillDirection.Horizontal
-inputFrame.UIListLayout.Padding = UDim.new(0, 4)
-
-local function createInp(val, hint)
-    local i = Instance.new("TextBox")
-    i.Size = UDim2.new(0, 37, 1, 0)
-    i.BackgroundColor3 = Color3.fromRGB(25,25,30)
-    i.Text = val
-    i.PlaceholderText = hint
-    i.TextColor3 = Color3.new(1,1,1)
-    i.Font = Enum.Font.GothamBold
-    i.TextSize = 9
-    i.ClearTextOnFocus = false
-    i.Parent = inputFrame
-    Instance.new("UICorner", i)
-    return i
-end
-
-local bInp = createInp("12", "Beds")
-local lInp = createInp("480", "Len")
-local sInp = createInp("30", "Sec")
-local wInp = createInp("10", "Width")
-
-local cStart = btn("START CLICKER", Color3.fromRGB(46, 184, 114))
-local cStop  = btn("STOP CLICKER", Color3.fromRGB(231, 76, 60))
-local pBtn   = btn("START PATROL", Color3.fromRGB(52, 152, 219))
-local bBtn   = btn("SPAWN BEDS", Color3.fromRGB(155, 89, 182))
-local dBtn   = btn("DESTROY", Color3.fromRGB(40, 40, 45))
-
-local isHidden = false
-toggleBtn.MouseButton1Click:Connect(function()
-    isHidden = not isHidden
-    local targetScale = isHidden and 0 or 1
-    TweenService:Create(uiScale, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {Scale = targetScale}):Play()
-    mainFrame.Visible = true 
-    task.delay(isHidden and 0.3 or 0, function()
-        if isHidden then mainFrame.Visible = false end
+task.spawn(function()
+    local t = 0
+    RunService.Heartbeat:Connect(function(dt)
+        t = t + dt * 0.6
+        local ratio = (math.sin(t) + 1) / 2
+        currentGradiantColor = color1:Lerp(color2, ratio)
     end)
 end)
 
-local function waitPatrol(duration)
-    local elapsed = 0
-    while elapsed < duration and isPatrolling do elapsed = elapsed + task.wait() end
+local function applyGradiant(obj, prop)
+    RunService.Heartbeat:Connect(function()
+        if obj and obj.Parent then
+            obj[prop] = currentGradiantColor
+        end
+    end)
 end
 
-pBtn.MouseButton1Click:Connect(function()
-    if isPatrolling then
-        isPatrolling = false
-        if cameraLockConnection then cameraLockConnection:Disconnect() end
-        if patrolConnection then patrolConnection:Disconnect() end
-        camera.CameraType = Enum.CameraType.Custom
-        pBtn.Text = "START PATROL"
-        pBtn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
-    else
-        local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FarmSystem_Legacy_Premium"
+ScreenGui.ResetOnSpawn = false
+local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
+ScreenGui.Parent = success and coreGui or player:WaitForChild("PlayerGui")
 
-        isPatrolling = true
-        pBtn.Text = "STOP PATROL"
-        pBtn.BackgroundColor3 = Color3.fromRGB(230, 126, 34)
+local btnHide = Instance.new("ImageButton", ScreenGui)
+btnHide.Size = UDim2.new(0, 45, 0, 45)
+btnHide.Position = UDim2.new(0, 10, 0.5, -135)
+btnHide.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+btnHide.Image = "rbxassetid://100142668268808"
+Instance.new("UICorner", btnHide).CornerRadius = UDim.new(0, 12)
+local hStroke = Instance.new("UIStroke", btnHide)
+hStroke.Thickness = 2
+applyGradiant(hStroke, "Color")
 
-        local startRotation = hrp.CFrame.Rotation
-        camera.CameraType = Enum.CameraType.Scriptable
-        
-        cameraLockConnection = RunService.RenderStepped:Connect(function()
-            if hrp and isPatrolling then
-                camera.CFrame = CFrame.new(hrp.Position) * startRotation * CFrame.new(0, camHeight, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-            end
-        end)
+local MasterFrame = Instance.new("Frame", ScreenGui)
+MasterFrame.Size = UDim2.new(0, 180, 0, 310) 
+MasterFrame.Position = UDim2.new(0, 70, 0.5, -155)
+MasterFrame.BackgroundTransparency = 1
+MasterFrame.Active = true
+MasterFrame.Draggable = true
 
-        local fwd = hrp.CFrame.LookVector
-        local back = -fwd
-        local right = hrp.CFrame.RightVector
+local MainMenu = Instance.new("ImageLabel", MasterFrame)
+MainMenu.Size = UDim2.new(1, 0, 1, 0)
+MainMenu.BackgroundTransparency = 1
+MainMenu.Image = "rbxassetid://136216611932487"
+MainMenu.ScaleType = Enum.ScaleType.Crop
+Instance.new("UICorner", MainMenu).CornerRadius = UDim.new(0, 15)
+local mStroke = Instance.new("UIStroke", MainMenu)
+mStroke.Thickness = 3
+applyGradiant(mStroke, "Color")
 
-        patrolConnection = RunService.RenderStepped:Connect(function()
-            local h = char:FindFirstChild("Humanoid")
-            if h and isPatrolling then h:Move(currentDirection * 0.4, false) end
-        end)
+local listLayout = Instance.new("UIListLayout", MainMenu)
+listLayout.Padding = UDim.new(0, 6)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+Instance.new("UIPadding", MainMenu).PaddingTop = UDim.new(0, 8)
 
-        task.spawn(function()
-            while isPatrolling do
-                local currentWalkSec = tonumber(sInp.Text) or 30
-                currentDirection = fwd; waitPatrol(currentWalkSec)
-                if not isPatrolling then break end
-                currentDirection = right; waitPatrol(0.6)
-                if not isPatrolling then break end
-                currentDirection = back; waitPatrol(currentWalkSec)
-                if not isPatrolling then break end
-                currentDirection = right; waitPatrol(0.6)
-            end
-            if cameraLockConnection then cameraLockConnection:Disconnect() end
-            if patrolConnection then patrolConnection:Disconnect() end
-            camera.CameraType = Enum.CameraType.Custom
-            currentDirection = Vector3.new(0,0,0)
-        end)
-    end
-end)
+local InputFrame = Instance.new("Frame", MainMenu)
+InputFrame.Size = UDim2.new(0.9, 0, 0, 28)
+InputFrame.BackgroundTransparency = 1
+local ilist = Instance.new("UIListLayout", InputFrame)
+ilist.FillDirection = Enum.FillDirection.Horizontal
+ilist.Padding = UDim.new(0, 4)
+ilist.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-bBtn.MouseButton1Click:Connect(function()
+local function createInp(val, hint)
+    local i = Instance.new("TextBox", InputFrame)
+    i.Size = UDim2.new(0, 36, 1, 0)
+    i.BackgroundColor3 = Color3.fromRGB(15, 10, 20)
+    i.BackgroundTransparency = 0.2
+    i.Text = val
+    i.PlaceholderText = hint
+    i.TextColor3 = Color3.fromRGB(255, 255, 255)
+    i.Font = Enum.Font.GothamBold
+    i.TextSize = 10
+    i.ClearTextOnFocus = false
+    Instance.new("UICorner", i).CornerRadius = UDim.new(0, 4)
+    local stroke = Instance.new("UIStroke", i)
+    stroke.Thickness = 1
+    applyGradiant(stroke, "Color")
+    return i
+end
+
+local bInp = createInp("12", "B")
+local lInp = createInp("480", "L")
+local sInp = createInp("30", "S") 
+local wInp = createInp("10", "W")
+
+local function createStyledBtn(text, order)
+    local btn = Instance.new("TextButton", MainMenu)
+    btn.Size = UDim2.new(0.9, 0, 0, 32)
+    btn.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    btn.BackgroundTransparency = 0.25 
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255) 
+    btn.Text = text
+    btn.LayoutOrder = order
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Thickness = 1.2
+    stroke.Transparency = 0.5
+    applyGradiant(stroke, "Color") 
+    return btn
+end
+
+local btnSpawn = createStyledBtn("✓ ПОСТРОИТЬ ГРЯДКИ", 1)
+local btnPatrol = createStyledBtn("АВТО ФАРМ ◾", 2)
+local btnTimerPatrol = createStyledBtn("ПЛЕНТ КОТЛОВ ◽", 3)
+local btnClicker = createStyledBtn("🖱️ КЛИКЕР: ВЫКЛ", 4)
+local btnDestroy = createStyledBtn("× УДАЛИТЬ ВСЁ", 5)
+
+local function stopAllPatrols()
+    isPatrolling = false
+    isTimedPatrolling = false
+    if patrolConnection then patrolConnection:Disconnect() end
+    camera.CameraType = Enum.CameraType.Custom
+    if cameraLockConnection then cameraLockConnection:Disconnect() end
+    btnPatrol.Text = "АВТО ФАРМ ◾"
+    btnTimerPatrol.Text = "ПЛЕНТ КОТЛОВ ◽"
+    currentDirection = Vector3.new(0,0,0)
+end
+
+local function waitPatrol(duration)
+    local elapsed = 0
+    while elapsed < duration and isTimedPatrolling do elapsed = elapsed + task.wait() end
+end
+
+btnSpawn.MouseButton1Click:Connect(function()
     for _, o in pairs(activeBarriers) do if o then o:Destroy() end end
     activeBarriers = {}
+    waypoints = {} 
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
     local count = tonumber(bInp.Text) or 12
     local len = tonumber(lInp.Text) or 480
     local width = tonumber(wInp.Text) or 10
-    
-    for i = 0, count do
-        local w = Instance.new("Part")
-        w.Name = "FarmWall"
-        w.Size = Vector3.new(0.5, 30, len)
-        w.Material = Enum.Material.ForceField
-        w.Color = Color3.fromRGB(0, 255, 100)
-        w.Anchored = true
-        w.CanCollide = true
-        w.Transparency = 0.5
-        w.CFrame = hrp.CFrame * CFrame.new(-(width/2) + (i * width), 0, -len/2)
-        w.Parent = workspace
-        table.insert(activeBarriers, w)
+    local baseCF = hrp.CFrame
+
+    for i = 0, count - 1 do
+        for wallIdx = 0, 1 do
+            local w = Instance.new("Part", workspace)
+            w.Size = Vector3.new(0.5, 30, len)
+            w.Material = Enum.Material.ForceField
+            w.Anchored = true; w.Transparency = 0.5
+            w.CFrame = baseCF * CFrame.new(-(width/2) + ((i + wallIdx) * width), 0, -len/2)
+            table.insert(activeBarriers, w)
+            applyGradiant(w, "Color")
+        end
         
-        if i < count then
-            local roof = Instance.new("Part")
-            roof.Name = "FarmRoof"
-            roof.Size = Vector3.new(width, 0.5, len)
-            roof.Material = Enum.Material.ForceField
-            roof.Color = Color3.fromRGB(0, 255, 100)
-            roof.Anchored = true
-            roof.CanCollide = true
-            roof.Transparency = 0.5
-            roof.CFrame = hrp.CFrame * CFrame.new(i * width, 4, -len / 2)
-            roof.Parent = workspace
-            table.insert(activeBarriers, roof)
+        local roof = Instance.new("Part", workspace)
+        roof.Size = Vector3.new(width, 0.5, len)
+        roof.Material = Enum.Material.ForceField
+        roof.Anchored = true; roof.Transparency = 0.5
+        roof.CFrame = baseCF * CFrame.new(i * width, 4, -len / 2)
+        table.insert(activeBarriers, roof)
+        applyGradiant(roof, "Color")
+        
+        local ptStartPos = (baseCF * CFrame.new(i * width, 0, 5)).Position
+        local ptEndPos = (baseCF * CFrame.new(i * width, 0, -len - 5)).Position
+        
+        if i % 2 == 0 then
+            table.insert(waypoints, ptStartPos)
+            table.insert(waypoints, ptEndPos)
+        else
+            table.insert(waypoints, ptEndPos)
+            table.insert(waypoints, ptStartPos)
         end
     end
 end)
 
-cStart.MouseButton1Click:Connect(function()
-    if clickerConnection then return end
-    clickerConnection = RunService.RenderStepped:Connect(function()
-        VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2 - 50, camera.ViewportSize.Y/2, 0, true, game, 1)
-        VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2 - 50, camera.ViewportSize.Y/2, 0, false, game, 1)
-    end)
-    cStart.Text = "ON"
+btnPatrol.MouseButton1Click:Connect(function()
+    if isPatrolling then stopAllPatrols() else
+        stopAllPatrols()
+        if #waypoints == 0 then return end 
+        local char = player.Character
+        local humanoid = char:FindFirstChild("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not (humanoid and hrp) then return end
+
+        isPatrolling = true
+        btnPatrol.Text = "СТОП ФАРМ ▶︎"
+        
+        local startRotation = hrp.CFrame.Rotation
+        camera.CameraType = Enum.CameraType.Scriptable
+        cameraLockConnection = RunService.RenderStepped:Connect(function()
+            if hrp and isPatrolling then
+                camera.CFrame = CFrame.new(hrp.Position) * startRotation * CFrame.new(0, camHeight, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+            end
+        end)
+
+        currentWpIndex = 1
+        patrolConnection = RunService.Heartbeat:Connect(function()
+            if not isPatrolling then return end
+            if currentWpIndex <= #waypoints then
+                local targetPos = waypoints[currentWpIndex]
+                humanoid:MoveTo(targetPos)
+                if (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(targetPos.X, 0, targetPos.Z)).Magnitude < 1.2 then 
+                    currentWpIndex = currentWpIndex + 1
+                end
+            else
+                currentWpIndex = 1 
+            end
+        end)
+    end
 end)
 
-cStop.MouseButton1Click:Connect(function()
-    if clickerConnection then clickerConnection:Disconnect() clickerConnection = nil end
-    cStart.Text = "START CLICKER"
+btnTimerPatrol.MouseButton1Click:Connect(function()
+    if isTimedPatrolling then stopAllPatrols() else
+        stopAllPatrols()
+        local char = player.Character
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChild("Humanoid")
+        if not (hrp and humanoid) then return end
+
+        isTimedPatrolling = true
+        btnTimerPatrol.Text = "СТОП ПЛЕНТ ▶︎"
+
+        local fwd = hrp.CFrame.LookVector
+        local back = -fwd
+        local right = hrp.CFrame.RightVector
+        
+        camera.CameraType = Enum.CameraType.Scriptable
+        local startRotation = hrp.CFrame.Rotation
+        cameraLockConnection = RunService.RenderStepped:Connect(function()
+            if hrp and isTimedPatrolling then
+                camera.CFrame = CFrame.new(hrp.Position) * startRotation * CFrame.new(0, camHeight, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+            end
+        end)
+
+        patrolConnection = RunService.RenderStepped:Connect(function()
+            if humanoid and isTimedPatrolling then humanoid:Move(currentDirection * 0.4, false) end
+        end)
+
+        task.spawn(function()
+            while isTimedPatrolling do
+                local walkTime = tonumber(sInp.Text) or 30
+                currentDirection = fwd; waitPatrol(walkTime)
+                if not isTimedPatrolling then break end
+                currentDirection = right; waitPatrol(0.5)
+                if not isTimedPatrolling then break end
+                currentDirection = back; waitPatrol(walkTime)
+                if not isTimedPatrolling then break end
+                currentDirection = right; waitPatrol(0.5)
+            end
+            stopAllPatrols()
+        end)
+    end
 end)
 
-dBtn.MouseButton1Click:Connect(function()
-    isPatrolling = false
-    camera.CameraType = Enum.CameraType.Custom
+btnClicker.MouseButton1Click:Connect(function()
+    isClicking = not isClicking
+    btnClicker.Text = isClicking and "🖱️ КЛИКЕР: ВКЛ" or "🖱️ КЛИКЕР: ВЫКЛ"
+    if isClicking then
+        clickerConnection = RunService.RenderStepped:Connect(function()
+            VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2 - 50, camera.ViewportSize.Y/2, 0, true, game, 1)
+            VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2 - 50, camera.ViewportSize.Y/2, 0, false, game, 1)
+        end)
+    elseif clickerConnection then
+        clickerConnection:Disconnect(); clickerConnection = nil
+    end
+end)
+
+btnDestroy.MouseButton1Click:Connect(function()
+    stopAllPatrols()
+    isClicking = false
     if clickerConnection then clickerConnection:Disconnect() end
-    if cameraLockConnection then cameraLockConnection:Disconnect() end
     for _, o in pairs(activeBarriers) do if o then o:Destroy() end end
-    screenGui:Destroy()
+    ScreenGui:Destroy()
 end)
+
+btnHide.MouseButton1Click:Connect(function() MasterFrame.Visible = not MasterFrame.Visible end)
