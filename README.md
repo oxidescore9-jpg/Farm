@@ -36,7 +36,7 @@ local function applyGradiant(obj, prop)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FarmSystem_Legacy_Premium"
+ScreenGui.Name = "FarmSystem_Clean_Slang"
 ScreenGui.ResetOnSpawn = false
 local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
 ScreenGui.Parent = success and coreGui or player:WaitForChild("PlayerGui")
@@ -123,11 +123,11 @@ local function createStyledBtn(text, order)
     return btn
 end
 
-local btnSpawn = createStyledBtn("✓ ПОСТРОИТЬ ГРЯДКИ", 1)
-local btnPatrol = createStyledBtn("АВТО ФАРМ ◾", 2)
-local btnTimerPatrol = createStyledBtn("ПЛЕНТ КОТЛОВ ◽", 3)
-local btnClicker = createStyledBtn("🖱️ КЛИКЕР: ВЫКЛ", 4)
-local btnDestroy = createStyledBtn("× УДАЛИТЬ ВСЁ", 5)
+local btnSpawn = createStyledBtn("🏁 СТЕНЫ", 1)
+local btnPatrol = createStyledBtn("♟️ ФАРМ КОТЛОВ", 2)
+local btnTimerPatrol = createStyledBtn("🍀 ПЛЕНТ КОТЛОВ", 3)
+local btnClicker = createStyledBtn("🎮 КЛИК: 🔳", 4)
+local btnDestroy = createStyledBtn("✖️ СНЕСТИ", 5)
 
 local function stopAllPatrols()
     isPatrolling = false
@@ -135,8 +135,8 @@ local function stopAllPatrols()
     if patrolConnection then patrolConnection:Disconnect() end
     camera.CameraType = Enum.CameraType.Custom
     if cameraLockConnection then cameraLockConnection:Disconnect() end
-    btnPatrol.Text = "АВТО ФАРМ ◾"
-    btnTimerPatrol.Text = "ПЛЕНТ КОТЛОВ ◽"
+    btnPatrol.Text = "♟️ ФАРМ КОТЛОВ "
+    btnTimerPatrol.Text = "🍀 ПЛЕНТ КОТЛОВ "
     currentDirection = Vector3.new(0,0,0)
 end
 
@@ -199,7 +199,7 @@ btnPatrol.MouseButton1Click:Connect(function()
         if not (humanoid and hrp) then return end
 
         isPatrolling = true
-        btnPatrol.Text = "СТОП ФАРМ ▶︎"
+        btnPatrol.Text = "◼️ СТОП"
         
         local startRotation = hrp.CFrame.Rotation
         camera.CameraType = Enum.CameraType.Scriptable
@@ -234,7 +234,7 @@ btnTimerPatrol.MouseButton1Click:Connect(function()
         if not (hrp and humanoid) then return end
 
         isTimedPatrolling = true
-        btnTimerPatrol.Text = "СТОП ПЛЕНТ ▶︎"
+        btnTimerPatrol.Text = "◼️ СТОП"
 
         local fwd = hrp.CFrame.LookVector
         local back = -fwd
@@ -257,11 +257,14 @@ btnTimerPatrol.MouseButton1Click:Connect(function()
                 local walkTime = tonumber(sInp.Text) or 30
                 currentDirection = fwd; waitPatrol(walkTime)
                 if not isTimedPatrolling then break end
-                currentDirection = right; waitPatrol(0.5)
+                
+                currentDirection = right; waitPatrol(0.65)
                 if not isTimedPatrolling then break end
+                
                 currentDirection = back; waitPatrol(walkTime)
                 if not isTimedPatrolling then break end
-                currentDirection = right; waitPatrol(0.5)
+                
+                currentDirection = right; waitPatrol(0.65)
             end
             stopAllPatrols()
         end)
@@ -270,7 +273,7 @@ end)
 
 btnClicker.MouseButton1Click:Connect(function()
     isClicking = not isClicking
-    btnClicker.Text = isClicking and "🖱️ КЛИКЕР: ВКЛ" or "🖱️ КЛИКЕР: ВЫКЛ"
+    btnClicker.Text = isClicking and "🖱️ КЛИК: 🔳" or "🖱️ КЛИК: 🔲"
     if isClicking then
         clickerConnection = RunService.RenderStepped:Connect(function()
             VirtualInputManager:SendMouseButtonEvent(camera.ViewportSize.X/2 - 50, camera.ViewportSize.Y/2, 0, true, game, 1)
