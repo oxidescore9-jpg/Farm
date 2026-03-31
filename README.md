@@ -1,3 +1,5 @@
+--СКРИПТ НА ФАРМ В ДЕНЬ ПАТРИКА 🍀☘️
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -16,12 +18,12 @@ local camHeight = 17.5
 
 local color1 = Color3.fromRGB(180, 100, 255) 
 local color2 = Color3.fromRGB(40, 10, 80)  
-ilist currentGradiantColor = color1
+local currentGradiantColor = color1
 
 task.spawn(function()
     local t = 0
     RunService.Heartbeat:Connect(function(dt)
-        t = t + dt * 0.
+        t = t + dt * 0.6
         local ratio = (math.sin(t) + 1) / 2
         currentGradiantColor = color1:Lerp(color2, ratio)
     end)
@@ -258,13 +260,13 @@ btnTimerPatrol.MouseButton1Click:Connect(function()
                 currentDirection = fwd; waitPatrol(walkTime)
                 if not isTimedPatrolling then break end
                 
-                currentDirection = right; waitPatrol(1)
+                currentDirection = right; waitPatrol(0.65)
                 if not isTimedPatrolling then break end
                 
                 currentDirection = back; waitPatrol(walkTime)
                 if not isTimedPatrolling then break end
                 
-                currentDirection = right; waitPatrol(1)
+                currentDirection = right; waitPatrol(0.65)
             end
             stopAllPatrols()
         end)
